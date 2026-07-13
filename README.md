@@ -1,244 +1,180 @@
-# AEAP Reference Consumer Agent
+# Nustro Reference Consumer Agent
 
-**Version:** 0.5.0  
-**Protocol:** AEAP (Autonomous Economic Agent Protocol)  
+**Protocol:** AEA/P (Autonomous Economic Agent Protocol)
+**Operator:** Nustro — `https://api.nustro.ai`
 **Role:** CONSUMER — purchases services and confirms delivery
 
-This is a complete, runnable Flask application demonstrating how a Consumer
-agent integrates with the AEAP Platform. It handles mutual authentication,
-on-chain payment execution, proof submission, PoP task confirmation, and
+A complete, runnable Flask reference implementation of an **AEA/P** consumer
+agent, integrated with the **Nustro** API. It demonstrates mutual
+authentication, on-chain payment, proof submission, PoP confirmation, and
 optional dispute filing.
+
+> This is a **Nustro** reference tool. The product/operator surface is Nustro;
+> the wire protocol it speaks — `did:aeap:` identifiers, `X-AEAP-*` handshake
+> headers, `.well-known/aeap` discovery — is **AEA/P** and is left as protocol
+> surface on purpose.
 
 ---
 
-## What this demonstrates
+## Architecture (who talks to whom)
 
-The full AEAP interaction flow — 9 steps executed in a single `/run` call:
+The **Platform is out of the runtime path** — it does onboarding, config, and
+discovery only. At runtime the consumer talks **directly** to the Provider
+(agent↔agent) and to the **Nustro Operator** (challenge, status, payment
+intent, proof, facilitation, PoP). The Operator governs spend at
+payment-intent creation — the single chokepoint: *no intent, no settlement.*
+
+---
+
+## What this demonstrates — the 9-step `/run` flow
 
 ```
-Step 1  Fetch Provider discovery document
-Step 2  Get AEAP challenge nonce from platform
+Step 1  Fetch Provider discovery document (.well-known/aeap)
+Step 2  Get an AEA/P challenge nonce from the Nustro Operator
 Step 3  Send challenge to Provider → receive certificate + signature
-Step 4  Verify Provider certificate and signature (offline — no platform call)
-Step 5  Check Provider status on AEAP Platform (ACTIVE, escrow_state, pop_rating)
-Step 6  GET /research → receive 402 with AEAPSettlement payment instructions
-Step 7  token.approve() + AEAPSettlement.pay() on-chain
-Step 8  POST /research with AEAP bound proof + payment tx hash
+Step 4  Verify Provider certificate + signature offline (Nustro CA JWKS)
+Step 5  Check Provider status on Nustro (ACTIVE, escrow_state, agent_rating)
+Step 6  GET /research?consumer_did=… → Provider answers 402 (the Operator
+        spend-checks the consumer and mints a payment intent first). If the
+        consumer's spend policy refuses, the Provider relays 403.
+Step 7  token.approve() + NustroSettlement.pay() on-chain
+Step 8  POST /research with AEA/P bound proof + payment tx hash
 Step 9  POST /v1/tasks/{task_id}/confirm → PoP signals computed, AR updated
 ```
 
-Optional: pass `"dispute": true` in the request body to file a dispute
-instead of confirming delivery in Step 9.
+Pass `"dispute": true` in the body to file a dispute instead of confirming.
 
 ---
 
 ## Prerequisites
 
-1. **AEAP account** — register at `https://api.aeap.ai/swagger`
-2. **Agent registration** — `POST /v1/agents/register` with `economic_role: CONSUMER`
-3. **Production promotion** — `POST /v1/agents/{did}/environment`
-4. **Funded wallet** — EVM wallet with USDC on the target network
+1. **Nustro account** — register at `https://api.nustro.ai/docs`.
+2. **Agent registered + activated** — `POST /v1/agents` (`economic_role: CONSUMER`),
+   then `POST /v1/agents/{did}/activate` for the key pair + certificate
+   (private key shown **once**).
+3. **Funded wallet** — EVM wallet with USDC + gas.
+4. **For on-chain settlement (Steps 6–9):** both agents in the **`production`**
+   environment (`POST /v1/agents/{did}/environment`) — needs an accredited
+   Platform and a `nustro_live_` key. Steps 1–5 work in **sandbox**.
 
-> **Note:** The Consumer and Provider agents must be registered under
-> **different principals** for PoP credit to be issued. Same-principal
-> interactions are Sybil-protected — they execute normally but generate
-> no PoP task record.
+> **Different principals** — Consumer and Provider must be owned by different
+> principals for PoP credit (same-principal → `task_id: null`).
+>
+> **Spend scope** — this consumer's AID scope (`max_transaction_value`,
+> `spending_limit`, `minimum_counterparty_*`) is enforced by the Operator when
+> the Provider requests the payment intent. Set it via `PATCH /scope`.
+>
+> **Market** — settlement derives the market from the consumer principal's
+> `country` + currency; the Provider's `authorized_markets` must include
+> `{COUNTRY}-USDC` (or `GLOBAL-USDC`).
 
 ---
 
 ## Setup
 
-### 1. Install dependencies
-
 ```bash
-python3 -m venv venv
-source venv/bin/activate
+python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+cp .env.example .env      # then edit
 ```
-
-### 2. Configure environment
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` with your values:
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `AEAP_PRINCIPAL_KEY` | Yes | Your principal API key (`aeapp_...`). Issued after email verification. |
-| `CONSUMER_DID` | Yes | Your agent DID (`did:aeap:...`). Issued at agent registration. |
-| `CONSUMER_WALLET_PRIVATE_KEY` | Yes | EVM private key of the wallet holding USDC. Never share. |
-| `BASE_SEPOLIA_RPC` | Yes | RPC URL for the blockchain network. |
-| `PROVIDER_DID` | No | Provider to connect to. Defaults to AEAP sandbox provider. |
-| `PROVIDER_BASE_URL` | No | Provider URL. Defaults to AEAP sandbox. |
+| `OPERATOR_URL` | No | Nustro Operator base URL. Default `https://api.nustro.ai`. |
+| `NUSTRO_PRINCIPAL_KEY` | Yes | Management key (`nustro_sandbox_…` / `nustro_live_…`), shown once. |
+| `CONSUMER_DID` | Yes | This agent's DID (`did:aeap:…`). |
+| `PROVIDER_DID` | Yes | Counterparty (Sell-bot) DID. |
+| `PROVIDER_BASE_URL` | Yes | Provider service URL (e.g. `http://localhost:5001`). |
+| `CONSUMER_WALLET_PRIVATE_KEY` | Yes | EVM private key of the wallet holding USDC. |
+| `BASE_SEPOLIA_RPC` | Yes | RPC URL for the settlement network. |
 
-### 3. Install agent keys
-
-Copy your agent keys from the registration response to the `keys/` directory:
+Install this agent's material in `keys/`:
 
 ```
 keys/
   private_key.pem    ← EC P-256 private key (NEVER share or commit)
-  certificate.jwt    ← AEAP certificate JWT issued at registration
+  certificate.jwt    ← AEA/P certificate JWT (issued by the Nustro CA)
 ```
 
-### 4. Fund your wallet
-
-The Consumer wallet needs:
-- **USDC** on Base Sepolia — get from https://faucet.circle.com
-- **ETH** on Base Sepolia — get from https://faucet.alchemy.com/base-sepolia
-
-Each `/run` call costs 1 USDC (configurable in the Provider).
-
-### 5. Run
+Fund on Base Sepolia: USDC — https://faucet.circle.com · ETH — https://faucet.alchemy.com/base-sepolia
 
 ```bash
-# Development
-python wsgi.py
-
-# Production
-gunicorn --workers 2 --bind 127.0.0.1:5002 wsgi:app
+python wsgi.py                                        # dev
+gunicorn --workers 2 --bind 127.0.0.1:5000 wsgi:app   # prod
 ```
 
 ---
 
-## API endpoints
+## Endpoints
 
-### `POST /run` or `GET /run`
-
-Triggers the full 9-step AEAP interaction flow.
-
-**Request body (all optional):**
-```json
-{
-  "query":               "What are the key principles of AEAP?",
-  "confirm_outcome":     "confirmed",
-  "confirm_score":       null,
-  "dispute":             false,
-  "dispute_reason":      "NON_DELIVERY",
-  "dispute_description": "Service was not delivered as specified.",
-  "resolution_sought":   "Full refund"
-}
-```
-
-**`confirm_outcome`** values:
-- `confirmed` — service delivered as expected (default). Score = 1.0.
-- `partial` — partial delivery. Provide `confirm_score` (0.0–1.0).
-- `rejected` — service not delivered. Score = 0.0. Consider filing a dispute.
-
-**`dispute: true`** — skips task confirmation and files a dispute instead.
-Provider has 7 days to resolve directly before formal arbitration begins.
-Bounty is deducted from Provider escrow to fund arbitrators.
-
-**Response:**
-```json
-{
-  "success": true,
-  "result": "Service response here",
-  "task_id": "uuid",
-  "facilitation_id": "uuid",
-  "payment": {
-    "tx_hash": "0x...",
-    "network": "base-sepolia",
-    "amount": "1.00 USDC"
-  },
-  "interaction_log": [
-    { "step": 1, "description": "...", "detail": {} },
-    ...
-  ]
-}
-```
-
-### `GET /health`
-
-Returns Consumer agent status.
+- **`POST /run`** (or `GET /run`) — the full flow. Optional body: `query`,
+  `confirm_outcome` (`confirmed`|`partial`|`rejected`), `confirm_score`,
+  `dispute`, `dispute_reason`, `dispute_description`, `resolution_sought`.
+- **`GET /health`** — agent status.
 
 ---
 
 ## Payment flow
 
 ```
-Consumer                    AEAPSettlement              Provider
-   |                              |                         |
+Consumer                   NustroSettlement            Provider
    |── token.approve() ──────────►|                         |
    |── pay(token, amount,         |                         |
    |       providerDidHash,       |                         |
    |       consumerDidHash) ─────►|                         |
    |                              |── opAmt ───────────────►| operational wallet
-   |                              |── escrowAmt ────────────| escrow wallet (AEAP)
-   |                              |── feeAmt ───────────────| AEAP revenue
+   |                              |── escrowAmt ────────────| escrow wallet (Nustro-held)
+   |                              |── feeAmt ───────────────| Nustro fee
    |◄─ tx_hash ───────────────────|                         |
-   |                                                        |
-   |── POST /research (X-AEAP-Payment-Tx: tx_hash) ───────►|
-   |                                              ── POST /v1/facilitate ──►|
+   |── POST /research (X-AEAP-Payment-Tx: tx_hash) ────────►|
+   |                                     ── POST /v1/facilitate ──►(Nustro)
    |◄─ service result + task_id ────────────────────────────|
-   |                                                        |
-   |── POST /v1/tasks/{task_id}/confirm ─────────────────►(platform)
+   |── POST /v1/tasks/{task_id}/confirm ──────────────────►(Nustro)
 ```
 
-**The Consumer pays the AEAPSettlement contract directly.**  
-No wallet addresses are exchanged with the Provider — only a payment
-proof (tx_hash) is included in the service request header.
+The Consumer pays the **NustroSettlement** contract directly — no wallet
+addresses are exchanged with the Provider, only the payment proof (tx_hash) in
+the `X-AEAP-Payment-Tx` header.
 
 ---
 
-## Wallet security
+## Spend policy
 
-`CONSUMER_WALLET_PRIVATE_KEY` gives full control over the wallet.
-Use a **dedicated wallet** for AEAP payments with only the USDC balance
-needed for testing. Never use a personal or exchange wallet.
+Before the Provider can quote a price, the Operator enforces **this consumer's**
+spend policy at intent creation:
 
-The wallet needs:
-- ETH for gas (~0.001 ETH per call on Base Sepolia)
-- USDC for payments (1 USDC per call with default pricing)
+- `max_transaction_value` — per-payment ceiling.
+- `spending_limit` (`{amount, currency, window_days}`) — rolling-window cap
+  (settled + open intents).
+- `minimum_counterparty_cert_tier` / `minimum_counterparty_ar` — provider floors.
 
-The ERC-20 `approve()` call sets a MAX_UINT256 allowance once —
-subsequent calls skip the approval step entirely (one transaction per payment).
+If a check fails, `GET /research` returns **`403 spend_policy_violation`**
+(relayed from the Operator), with `detail.failed_check`. Widen the scope via
+`PATCH /v1/agents/{did}/scope`.
 
 ---
 
-## PoP Rating
+## Agent Rating (AR)
 
-Every successful interaction contributes to both agents' Agent Rating (AR).
-Ratings are published after 10 qualifying interactions.
-
-- **Provider AR** — based on task completion, dispute-free rate, timeliness,
-  and availability.
-- **Consumer AR** — based on payment timeliness, confirmation speed,
-  budget compliance, and dispute fairness.
-
-Check current ratings:
-```bash
-curl https://api.aeap.ai/v1/agents/{did}/rating
-```
+Successful interactions feed both parties' `agent_rating` (published after
+enough qualifying interactions). Check: `curl https://api.nustro.ai/v1/agents/{did}/rating`.
 
 ---
 
 ## Troubleshooting
 
-**`replacement transaction underpriced`**  
-A previous transaction is stuck in the mempool. Wait 60 seconds and retry.
-If it persists, check the gas settings in `_execute_payment()`.
-
-**`Insufficient USDC`**  
-Get more from https://faucet.circle.com (Base Sepolia).
-
-**`provider_not_active`**  
-The target Provider is offline or not in production environment.
-
-**`task_id: null` in response**  
-The Consumer and Provider share the same principal — Sybil check.
-Register them under different principals for PoP credit.
-
-**401 on POST /research**  
-Certificate or proof verification failed. Ensure your keys in `keys/`
-match the registered agent and the certificate hasn't expired.
+- **`spend_policy_violation` on Step 6** — the consumer's scope refused the
+  amount/counterparty; check `detail.failed_check` and widen via `PATCH /scope`.
+- **`Insufficient USDC`** — top up at https://faucet.circle.com (Base Sepolia).
+- **`agent_not_active` / `environment_mismatch`** — one agent isn't `ACTIVE` + `production` (settlement needs both in production).
+- **`market_not_authorized` / `buyer_country_missing`** — set the consumer principal's `country`; ensure the Provider authorizes `{COUNTRY}-USDC` (or `GLOBAL-USDC`).
+- **`task_id: null`** — Consumer and Provider share a principal (Sybil check).
+- **401 on `POST /research`** — cert/proof verification failed; check `keys/` and cert expiry.
+- **401 `unauthorized` on Nustro calls** — check `NUSTRO_PRINCIPAL_KEY` and its sandbox/live environment.
 
 ---
 
-## AEAP documentation
+## Documentation
 
-- Platform API: https://api.aeap.ai/swagger
-- Protocol spec: https://aeap.ai/docs
-- Your rating:   https://api.aeap.ai/v1/agents/{your_did}/rating
+- Nustro API (contract + Swagger): https://api.nustro.ai/docs
+- AEA/P protocol spec: https://docs.aeap.dev

@@ -1,11 +1,11 @@
 """
-Consumer — AEAP Reference Consumer Agent (Sprint 4)
+Consumer — Nustro Reference Consumer Agent (Sprint 4)
 
-Demonstrates the full AEAP payment flow with optional dispute filing:
+Demonstrates the full AEA/P payment flow with optional dispute filing:
 
   Phase 1: Mutual authentication with Provider
-  Phase 2: Receive 402 with AEAPSettlement payment instructions
-  Phase 3: Approve ERC-20 + call AEAPSettlement.pay() on-chain
+  Phase 2: Receive 402 with NustroSettlement payment instructions
+  Phase 3: Approve ERC-20 + call NustroSettlement.pay() on-chain
   Phase 4: Retry service call with payment proof
   Phase 6: Confirm PoP task (automatic) or file a dispute (optional)
 
@@ -40,22 +40,22 @@ app = Flask(__name__)
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 
-CONSUMER_DID      = 'did:aeap:4a3a9ceb-5fd7-481a-a3f7-6edc1974da59'
-PROVIDER_DID      = 'did:aeap:4ad3c2d3-a658-4793-8c5a-75eae395a053'
-PROVIDER_BASE_URL = 'https://provider.sandbox.aeap.ai'
-PLATFORM_URL      = 'https://api.aeap.ai'
+CONSUMER_DID      = os.environ.get('CONSUMER_DID', '')
+PROVIDER_DID      = os.environ.get('PROVIDER_DID', '')
+PROVIDER_BASE_URL = os.environ.get('PROVIDER_BASE_URL', 'http://localhost:5001')
+OPERATOR_URL      = os.environ.get('OPERATOR_URL', 'https://api.nustro.ai')
 
 client = AEAPClient(
     agent_did=CONSUMER_DID,
     private_key_path=os.path.join(os.path.dirname(__file__), 'keys', 'private_key.pem'),
     certificate_path=os.path.join(os.path.dirname(__file__), 'keys', 'certificate.jwt'),
-    platform_url=PLATFORM_URL,
+    operator_url=OPERATOR_URL,
 )
 
 # Minimal ERC-20 ABI
 ERC20_ABI = json.loads('[{"inputs":[{"name":"spender","type":"address"},{"name":"amount","type":"uint256"}],"name":"approve","outputs":[{"name":"","type":"bool"}],"stateMutability":"nonpayable","type":"function"},{"inputs":[{"name":"account","type":"address"}],"name":"balanceOf","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"},{"inputs":[{"name":"owner","type":"address"},{"name":"spender","type":"address"}],"name":"allowance","outputs":[{"name":"","type":"uint256"}],"stateMutability":"view","type":"function"}]')
 
-# Minimal AEAPSettlement ABI
+# Minimal NustroSettlement ABI
 SETTLEMENT_ABI = json.loads('[{"inputs":[{"name":"token","type":"address"},{"name":"amount","type":"uint256"},{"name":"providerDidHash","type":"bytes32"},{"name":"consumerDidHash","type":"bytes32"}],"name":"pay","outputs":[],"stateMutability":"nonpayable","type":"function"}]')
 
 RPC_URLS = {
@@ -65,7 +65,7 @@ RPC_URLS = {
 
 
 def _execute_payment(payment_method: dict) -> dict:
-    """Execute blockchain payment via AEAPSettlement.pay()."""
+    """Execute blockchain payment via NustroSettlement.pay()."""
     private_key = os.environ.get('CONSUMER_WALLET_PRIVATE_KEY', '')
     if not private_key:
         return {
@@ -133,7 +133,7 @@ def _execute_payment(payment_method: dict) -> dict:
 
         if receipt['status'] != 1:
             return {'success': False, 'tx_hash': pay_hash.hex(),
-                    'message': 'AEAPSettlement.pay() reverted.'}
+                    'message': 'NustroSettlement.pay() reverted.'}
 
         return {'success': True, 'tx_hash': pay_hash.hex(),
                 'network': network, 'amount': amount / 1e6,
@@ -146,12 +146,12 @@ def _execute_payment(payment_method: dict) -> dict:
 
 def _confirm_task(task_id: str, data: dict) -> dict:
     """
-    Confirm a PoP task via AEAP Platform.
+    Confirm a PoP task via Nustro Operator.
     Called from Step 9 (default behavior — no dispute requested).
     """
-    principal_key = os.environ.get('AEAP_PRINCIPAL_KEY', '')
+    principal_key = os.environ.get('NUSTRO_PRINCIPAL_KEY', '')
     if not principal_key:
-        return {'success': False, 'message': 'AEAP_PRINCIPAL_KEY not configured.'}
+        return {'success': False, 'message': 'NUSTRO_PRINCIPAL_KEY not configured.'}
 
     outcome = data.get('confirm_outcome', 'confirmed')
     score   = data.get('confirm_score', None)
@@ -163,9 +163,9 @@ def _confirm_task(task_id: str, data: dict) -> dict:
 
     try:
         resp = http_requests.post(
-            f"{PLATFORM_URL}/v1/tasks/{task_id}/confirm",
+            f"{OPERATOR_URL}/v1/tasks/{task_id}/confirm",
             headers={
-                'X-AEAP-Principal-Key': principal_key,
+                'Nustro-Principal-Key': principal_key,
                 'Content-Type':         'application/json',
             },
             json=payload,
@@ -184,20 +184,20 @@ def _confirm_task(task_id: str, data: dict) -> dict:
 
 def _file_dispute(facilitation_id: str, data: dict, gross_amt: str) -> dict:
     """
-    File a dispute against a facilitation via AEAP Platform.
+    File a dispute against a facilitation via Nustro Operator.
 
     Called from Step 9 when data['dispute'] == True.
     The Consumer's principal key is used (owns consumer_did in the facilitation).
     """
-    principal_key = os.environ.get('AEAP_PRINCIPAL_KEY', '')
+    principal_key = os.environ.get('NUSTRO_PRINCIPAL_KEY', '')
     if not principal_key:
-        return {'success': False, 'message': 'AEAP_PRINCIPAL_KEY not configured.'}
+        return {'success': False, 'message': 'NUSTRO_PRINCIPAL_KEY not configured.'}
 
     try:
         resp = http_requests.post(
-            f"{PLATFORM_URL}/v1/disputes",
+            f"{OPERATOR_URL}/v1/disputes",
             headers={
-                'X-AEAP-Principal-Key': principal_key,
+                'Nustro-Principal-Key': principal_key,
                 'Content-Type': 'application/json',
             },
             json={
@@ -226,7 +226,7 @@ def _file_dispute(facilitation_id: str, data: dict, gross_amt: str) -> dict:
 @app.route('/run', methods=['GET', 'POST'])
 def run():
     """
-    Trigger a full AEAP interaction with the Provider.
+    Trigger a full AEA/P interaction with the Provider.
 
     Optional body:
       query:               research query
@@ -236,7 +236,7 @@ def run():
       resolution_sought:   what you want (default: 'Full refund')
     """
     data  = request.get_json(silent=True) or {}
-    query = data.get('query', 'What are the key principles of AEAP protocol?')
+    query = data.get('query', 'What are the key principles of AEA/P protocol?')
 
     log = []
     def step(n, description, detail=None):
@@ -261,9 +261,9 @@ def run():
     })
 
     # ── Step 2: Challenge nonce ───────────────────────────────────────────────
-    step(2, 'Get challenge nonce from AEAP Platform')
+    step(2, 'Get challenge nonce from Nustro Operator')
     try:
-        nonce_resp = http_requests.get(f"{PLATFORM_URL}/v1/verify/challenge", timeout=5)
+        nonce_resp = http_requests.get(f"{OPERATOR_URL}/v1/verify/challenge", timeout=5)
         nonce = nonce_resp.json()['nonce']
     except Exception as e:
         return jsonify({'error': 'challenge_failed', 'log': log, 'detail': str(e)}), 500
@@ -299,7 +299,7 @@ def run():
     })
 
     # ── Step 5: Check Provider status ─────────────────────────────────────────
-    step(5, 'Check Provider status on AEAP Platform')
+    step(5, 'Check Provider status on Nustro Operator')
     provider_status = client._get_status(PROVIDER_DID)
     if not provider_status or provider_status.get('status') != 'ACTIVE':
         return jsonify({'error': 'provider_not_active', 'log': log}), 503
@@ -307,17 +307,27 @@ def run():
         'status':       provider_status.get('status'),
         'environment':  provider_status.get('environment'),
         'escrow_state': provider_status.get('escrow_state'),
-        'pop_rating':   provider_status.get('pop_rating'),
+        'agent_rating': provider_status.get('agent_rating'),
     })
 
     # ── Step 6: GET /research → 402 ──────────────────────────────────────────
+    # Send our DID so the Operator can spend-check + mint a payment intent.
     step(6, 'Call GET /research — expect 402 Payment Required',
-         f"GET {PROVIDER_BASE_URL}/research")
+         f"GET {PROVIDER_BASE_URL}/research?consumer_did={CONSUMER_DID}")
     try:
-        payment_resp = http_requests.get(f"{PROVIDER_BASE_URL}/research", timeout=5)
+        payment_resp = http_requests.get(
+            f"{PROVIDER_BASE_URL}/research",
+            params={'consumer_did': CONSUMER_DID}, timeout=5)
         payment_data = payment_resp.json()
     except Exception as e:
         return jsonify({'error': 'payment_request_failed', 'log': log, 'detail': str(e)}), 500
+
+    # The Operator may refuse the payment under our spend policy (relayed by the
+    # provider as 403). Surface it — the principal must widen its spend scope.
+    if payment_resp.status_code == 403 and payment_data.get('error') == 'spend_policy_violation':
+        step(6, 'Payment refused by spend policy', payment_data.get('detail'))
+        return jsonify({'error': 'spend_policy_violation',
+                        'detail': payment_data.get('detail'), 'log': log}), 403
 
     if payment_resp.status_code != 402:
         return jsonify({'error': 'expected_402',
@@ -336,10 +346,10 @@ def run():
         'expires_at': method.get('expires_at'),
     })
 
-    # ── Step 7: ERC-20 approve + AEAPSettlement.pay() ─────────────────────────
-    step(7, 'Approve ERC-20 + call AEAPSettlement.pay()',
+    # ── Step 7: ERC-20 approve + NustroSettlement.pay() ─────────────────────────
+    step(7, 'Approve ERC-20 + call NustroSettlement.pay()',
          f"token.approve({method.get('contract')}, {method.get('amount')}) "
-         f"then AEAPSettlement.pay(token, amount, providerDidHash, consumerDidHash)")
+         f"then NustroSettlement.pay(token, amount, providerDidHash, consumerDidHash)")
 
     payment_result = _execute_payment(method)
 
@@ -363,8 +373,8 @@ def run():
             'contract': method.get('contract'),
         })
 
-    # ── Step 8: POST /research with AEAP proof + payment tx ──────────────────
-    step(8, 'POST /research with AEAP bound proof + payment tx hash',
+    # ── Step 8: POST /research with AEA/P proof + payment tx ──────────────────
+    step(8, 'POST /research with AEA/P bound proof + payment tx hash',
          f"POST {PROVIDER_BASE_URL}/research")
 
     auth_headers = client.get_auth_headers(callee_did=PROVIDER_DID)
@@ -410,7 +420,7 @@ def run():
 
     if data.get('dispute') and facilitation_id:
         step(9, 'Filing dispute against Provider (dispute=true requested)',
-             f"POST {PLATFORM_URL}/v1/disputes — facilitation_id={facilitation_id}")
+             f"POST {OPERATOR_URL}/v1/disputes — facilitation_id={facilitation_id}")
 
         dispute_result = _file_dispute(facilitation_id, data, gross_amt)
 
@@ -432,7 +442,7 @@ def run():
         task_id_for_confirm = research_data.get('task_id')
         if task_id_for_confirm:
             step(9, 'Confirming PoP task',
-                 f"POST {PLATFORM_URL}/v1/tasks/{task_id_for_confirm}/confirm")
+                 f"POST {OPERATOR_URL}/v1/tasks/{task_id_for_confirm}/confirm")
             confirm_result = _confirm_task(task_id_for_confirm, data)
             if confirm_result.get('success'):
                 step(9, 'Task confirmed — signals computed', {
