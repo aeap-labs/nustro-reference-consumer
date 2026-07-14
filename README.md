@@ -10,7 +10,7 @@ authentication, on-chain payment, proof submission, PoP confirmation, and
 optional dispute filing.
 
 > This is a **Nustro** reference tool. The product/operator surface is Nustro;
-> the wire protocol it speaks — `did:aeap:` identifiers, `X-AEAP-*` handshake
+> the wire protocol it speaks — `did:aeap:` identifiers, `AEAP-*` handshake
 > headers, `.well-known/aeap` discovery — is **AEA/P** and is left as protocol
 > surface on purpose.
 
@@ -126,7 +126,7 @@ Consumer                   NustroSettlement            Provider
    |                              |── escrowAmt ────────────| escrow wallet (Nustro-held)
    |                              |── feeAmt ───────────────| Nustro fee
    |◄─ tx_hash ───────────────────|                         |
-   |── POST /research (X-AEAP-Payment-Tx: tx_hash) ────────►|
+   |── POST /research (AEAP-Payment-Tx: tx_hash) ────────►|
    |                                     ── POST /v1/facilitate ──►(Nustro)
    |◄─ service result + task_id ────────────────────────────|
    |── POST /v1/tasks/{task_id}/confirm ──────────────────►(Nustro)
@@ -134,7 +134,7 @@ Consumer                   NustroSettlement            Provider
 
 The Consumer pays the **NustroSettlement** contract directly — no wallet
 addresses are exchanged with the Provider, only the payment proof (tx_hash) in
-the `X-AEAP-Payment-Tx` header.
+the `AEAP-Payment-Tx` header.
 
 ---
 
