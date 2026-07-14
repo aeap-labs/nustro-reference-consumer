@@ -45,11 +45,23 @@ PROVIDER_DID      = os.environ.get('PROVIDER_DID', '')
 PROVIDER_BASE_URL = os.environ.get('PROVIDER_BASE_URL', 'http://localhost:5001')
 OPERATOR_URL      = os.environ.get('OPERATOR_URL', 'https://api.nustro.ai')
 
-client = AEAPClient(
-    agent_did=CONSUMER_DID,
-    private_key_path=os.path.join(os.path.dirname(__file__), 'keys', 'private_key.pem'),
-    certificate_path=os.path.join(os.path.dirname(__file__), 'keys', 'certificate.jwt'),
-    operator_url=OPERATOR_URL,
+# Build the client from keys/ at startup IF a DID + key files are present.
+# Otherwise stay unconfigured until POST /configure supplies an identity — so
+# the app boots for a UI-driven demo with no .env.
+def _build_client(agent_did, key_path, cert_path, operator_url):
+    try:
+        if agent_did and os.path.exists(key_path) and os.path.exists(cert_path):
+            return AEAPClient(agent_did=agent_did, private_key_path=key_path,
+                              certificate_path=cert_path, operator_url=operator_url)
+    except Exception as e:
+        print(f"[CONFIG] startup identity not loaded: {e}", flush=True)
+    return None
+
+client = _build_client(
+    CONSUMER_DID,
+    os.path.join(os.path.dirname(__file__), 'keys', 'private_key.pem'),
+    os.path.join(os.path.dirname(__file__), 'keys', 'certificate.jwt'),
+    OPERATOR_URL,
 )
 
 # Minimal ERC-20 ABI
@@ -223,6 +235,66 @@ def _file_dispute(facilitation_id: str, data: dict, gross_amt: str) -> dict:
 
 # ── Run endpoint ──────────────────────────────────────────────────────────────
 
+@app.route('/configure', methods=['POST'])
+def configure():
+    """Set this agent's identity + counterparty at runtime (for the demo UI),
+    instead of reading .env at startup.
+
+    Body: consumer_did, provider_did, provider_base_url, private_key (PEM),
+    certificate (JWT) — required; operator_url, nustro_principal_key,
+    wallet_private_key, base_sepolia_rpc — optional.
+
+    LOCAL / TRUSTED DEMO USE ONLY: this accepts an agent private key over HTTP.
+    Never expose it on an untrusted network.
+    """
+    global CONSUMER_DID, PROVIDER_DID, PROVIDER_BASE_URL, OPERATOR_URL, client, RPC_URLS
+    data = request.get_json(silent=True) or {}
+
+    required = ['consumer_did', 'provider_did', 'provider_base_url', 'private_key', 'certificate']
+    missing  = [k for k in required if not (data.get(k) or '').strip()]
+    if missing:
+        return jsonify({'error': 'missing_fields', 'missing': missing}), 400
+
+    operator_url = (data.get('operator_url') or OPERATOR_URL).strip()
+    try:
+        new_client = AEAPClient(
+            agent_did=data['consumer_did'].strip(),
+            private_key_pem=data['private_key'],
+            certificate_jwt=data['certificate'],
+            operator_url=operator_url,
+        )
+    except Exception as e:
+        return jsonify({'error': 'invalid_identity',
+                        'message': f'Could not load key/certificate: {e}'}), 400
+
+    CONSUMER_DID      = data['consumer_did'].strip()
+    PROVIDER_DID      = data['provider_did'].strip()
+    PROVIDER_BASE_URL = data['provider_base_url'].strip()
+    OPERATOR_URL      = operator_url
+    client            = new_client
+
+    if (data.get('nustro_principal_key') or '').strip():
+        os.environ['NUSTRO_PRINCIPAL_KEY'] = data['nustro_principal_key'].strip()
+    if (data.get('wallet_private_key') or '').strip():
+        os.environ['CONSUMER_WALLET_PRIVATE_KEY'] = data['wallet_private_key'].strip()
+    if (data.get('base_sepolia_rpc') or '').strip():
+        os.environ['BASE_SEPOLIA_RPC'] = data['base_sepolia_rpc'].strip()
+    RPC_URLS = {
+        'base-sepolia': os.environ.get('BASE_SEPOLIA_RPC', ''),
+        'base':         os.environ.get('BASE_MAINNET_RPC', ''),
+    }
+
+    return jsonify({
+        'status':            'configured',
+        'consumer_did':      CONSUMER_DID,
+        'provider_did':      PROVIDER_DID,
+        'provider_base_url': PROVIDER_BASE_URL,
+        'operator_url':      OPERATOR_URL,
+        'wallet_configured': bool(os.environ.get('CONSUMER_WALLET_PRIVATE_KEY')),
+        'principal_key_set': bool(os.environ.get('NUSTRO_PRINCIPAL_KEY')),
+    }), 200
+
+
 @app.route('/run', methods=['GET', 'POST'])
 def run():
     """
@@ -235,6 +307,10 @@ def run():
       dispute_description: description of the issue
       resolution_sought:   what you want (default: 'Full refund')
     """
+    if client is None:
+        return jsonify({'error': 'not_configured',
+                        'message': 'No agent identity loaded. POST /configure first.'}), 409
+
     data  = request.get_json(silent=True) or {}
     query = data.get('query', 'What are the key principles of AEA/P protocol?')
 
@@ -489,6 +565,9 @@ def run():
 
 @app.route('/health', methods=['GET'])
 def health():
+    if client is None:
+        return jsonify({'status': 'unconfigured', 'role': 'CONSUMER',
+                        'message': 'POST /configure to load an agent identity.'})
     status = client.get_own_status()
     wallet_configured = bool(os.environ.get('CONSUMER_WALLET_PRIVATE_KEY', ''))
     return jsonify({

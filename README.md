@@ -110,7 +110,14 @@ gunicorn --workers 2 --bind 127.0.0.1:5000 wsgi:app   # prod
 - **`POST /run`** (or `GET /run`) — the full flow. Optional body: `query`,
   `confirm_outcome` (`confirmed`|`partial`|`rejected`), `confirm_score`,
   `dispute`, `dispute_reason`, `dispute_description`, `resolution_sought`.
-- **`GET /health`** — agent status.
+- **`POST /configure`** — set the agent identity + counterparty at runtime
+  (for a UI), instead of `.env`. Body: `consumer_did`, `provider_did`,
+  `provider_base_url`, `private_key` (PEM), `certificate` (JWT) — required;
+  `operator_url`, `nustro_principal_key`, `wallet_private_key`,
+  `base_sepolia_rpc` — optional. **Local/trusted use only** — it accepts a
+  private key over HTTP. Until configured (via `.env` or this call), `/run`
+  returns `409 not_configured`.
+- **`GET /health`** — agent status (`unconfigured` until an identity is loaded).
 
 ---
 
