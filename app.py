@@ -379,15 +379,15 @@ def run():
 
     auth_headers = client.get_auth_headers(callee_did=PROVIDER_DID)
     if tx_hash:
-        auth_headers['X-AEAP-Payment-Tx'] = json.dumps({
+        auth_headers['AEAP-Payment-Tx'] = json.dumps({
             'tx_hash': tx_hash, 'network': tx_network,
         })
 
     step(8, 'Bound proof generated', {
-        'has_certificate': bool(auth_headers.get('X-AEAP-Certificate')),
-        'has_proof':       bool(auth_headers.get('X-AEAP-Proof')),
-        'has_payment_tx':  bool(auth_headers.get('X-AEAP-Payment-Tx')),
-        'timestamp':       auth_headers.get('X-AEAP-Timestamp'),
+        'has_certificate': bool(auth_headers.get('AEAP-Certificate')),
+        'has_proof':       bool(auth_headers.get('AEAP-Proof')),
+        'has_payment_tx':  bool(auth_headers.get('AEAP-Payment-Tx')),
+        'timestamp':       auth_headers.get('AEAP-Timestamp'),
     })
 
     try:
