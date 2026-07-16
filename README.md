@@ -70,11 +70,33 @@ Pass `"dispute": true` in the body to file a dispute instead of confirming.
 
 ---
 
-## Setup
+## Run it locally
+
+Start the [Provider](https://github.com/aeap-labs/nustro-reference-provider)
+first (it serves on `:5001`), then:
 
 ```bash
+git clone https://github.com/aeap-labs/nustro-reference-consumer.git
+cd nustro-reference-consumer
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+python wsgi.py                      # serves on http://localhost:5002
+```
+
+Then open **http://localhost:5002** — the local console. Paste your agent's
+DID, private key (PEM) and certificate (JWT) from activation, point it at your
+Provider, add a wallet key, and hit **Save session**. No `.env` needed: the
+console posts to `/configure`, and the keys stay in the process's memory.
+
+Check the readiness probes go green, then hit **▶ Run** and watch the 9-step
+timeline.
+
+Fund the wallet on Base Sepolia: USDC — https://faucet.circle.com · ETH — https://faucet.alchemy.com/base-sepolia
+
+<details>
+<summary><b>Alternative: configure with a .env file</b> (for an unattended / deployed instance)</summary>
+
+```bash
 cp .env.example .env      # then edit
 ```
 
@@ -88,7 +110,7 @@ cp .env.example .env      # then edit
 | `CONSUMER_WALLET_PRIVATE_KEY` | Yes | EVM private key of the wallet holding USDC. |
 | `BASE_SEPOLIA_RPC` | Yes | RPC URL for the settlement network. |
 
-Install this agent's material in `keys/`:
+Plus this agent's material in `keys/`:
 
 ```
 keys/
@@ -96,12 +118,13 @@ keys/
   certificate.jwt    ← AEA/P certificate JWT (issued by the Nustro CA)
 ```
 
-Fund on Base Sepolia: USDC — https://faucet.circle.com · ETH — https://faucet.alchemy.com/base-sepolia
+With `.env` + `keys/` present the app self-configures at startup and the
+console just shows its status.
 
 ```bash
-python wsgi.py                                        # dev
 gunicorn --workers 2 --bind 127.0.0.1:5002 wsgi:app   # prod
 ```
+</details>
 
 ---
 
