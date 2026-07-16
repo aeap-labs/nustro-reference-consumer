@@ -30,7 +30,7 @@ import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'shared'))
 
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_file
 import requests as http_requests
 from aeap_client import AEAPClient
 from dotenv import load_dotenv
@@ -234,6 +234,13 @@ def _file_dispute(facilitation_id: str, data: dict, gross_amt: str) -> dict:
 
 
 # ── Run endpoint ──────────────────────────────────────────────────────────────
+
+@app.route('/', methods=['GET'])
+def ui():
+    """Local console — configure this agent and drive a run from the browser
+    (see ui.html)."""
+    return send_file(os.path.join(os.path.dirname(__file__), 'ui.html'))
+
 
 @app.route('/configure', methods=['POST'])
 def configure():

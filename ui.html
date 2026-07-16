@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nustro Reference Consumer — local console</title>
+<style>
+  :root{
+    --paper:#eef1f5; --surface:#fff; --surface-2:#f6f8fb; --ink:#111a26; --ink-2:#3c4a5c; --ink-3:#64748b;
+    --line:#d5dce6; --line-2:#e4e9f0; --rail:#0b6e73; --consumer:#2457c9; --ok:#2f8f4e; --warn:#b06a10; --crit:#bb3b30;
+    --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+    --sans:system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{--paper:#0b1017;--surface:#121a24;--surface-2:#0f161f;--ink:#e8edf3;--ink-2:#b3bfce;--ink-3:#7f8da0;
+      --line:#24303f;--line-2:#1b2430;--rail:#4ec4c4;--consumer:#6ea0ff;--ok:#4cc06e;--warn:#d99a2b;--crit:#e0685c;}
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);line-height:1.55;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1180px;margin:0 auto;padding:28px 22px 80px}
+  h1{font-size:1.4rem;margin:0;letter-spacing:-.02em}
+  h2{font-size:.95rem;margin:0 0 12px;letter-spacing:-.01em}
+  .sub{color:var(--ink-3);font-size:.85rem;margin-top:3px}
+  .chip{font-family:var(--mono);font-size:.62rem;letter-spacing:.12em;text-transform:uppercase;font-weight:700;
+    color:#fff;background:var(--consumer);border-radius:4px;padding:2px 7px}
+  header{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+  .warn{background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--warn);border-radius:9px;
+    padding:10px 14px;font-size:.82rem;color:var(--ink-2);margin:16px 0 26px}
+  .warn b{color:var(--ink)}
+  .cols{display:grid;grid-template-columns:minmax(0,380px) minmax(0,1fr);gap:18px;align-items:start}
+  @media(max-width:900px){.cols{grid-template-columns:1fr}}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:11px;padding:18px}
+  label{display:block;font-size:.72rem;font-weight:650;color:var(--ink-2);margin:11px 0 4px;letter-spacing:.01em}
+  label:first-of-type{margin-top:0}
+  input,textarea,select{width:100%;background:var(--surface-2);border:1px solid var(--line);border-radius:7px;
+    padding:7px 9px;font-size:.8rem;color:var(--ink);font-family:var(--mono)}
+  textarea{resize:vertical;min-height:64px}
+  input:focus,textarea:focus,select:focus{outline:2px solid var(--consumer);outline-offset:1px}
+  .row{display:flex;gap:8px;align-items:center}
+  .row input[type=file]{font-family:var(--sans);font-size:.7rem;padding:4px;border:0;background:none}
+  .hint{font-size:.68rem;color:var(--ink-3);margin-top:3px}
+  button{font-family:var(--sans);font-weight:650;font-size:.82rem;border:0;border-radius:8px;padding:9px 16px;cursor:pointer}
+  .primary{background:var(--consumer);color:#fff;width:100%;margin-top:16px}
+  .primary:disabled{opacity:.5;cursor:not-allowed}
+  .run{background:var(--rail);color:#fff}
+  details{margin-top:12px} summary{font-size:.75rem;color:var(--ink-3);cursor:pointer}
+  .status{display:grid;gap:7px;margin-top:2px}
+  .probe{display:flex;align-items:center;gap:9px;font-size:.8rem;color:var(--ink-2)}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ink-3);flex:none}
+  .dot.ok{background:var(--ok)} .dot.bad{background:var(--crit)} .dot.warn{background:var(--warn)}
+  .probe .v{margin-left:auto;font-family:var(--mono);font-size:.72rem;color:var(--ink-3)}
+  .runbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-bottom:14px}
+  .timeline{display:grid;gap:0}
+  .step{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:11px 0;border-top:1px solid var(--line-2)}
+  .step:first-child{border-top:0}
+  .step .n{font-family:var(--mono);font-size:.72rem;font-weight:700;color:var(--rail);width:24px;height:24px;
+    display:grid;place-items:center;border:1.5px solid var(--rail);border-radius:6px}
+  .step .d{font-size:.85rem;color:var(--ink);font-weight:600}
+  .step .m{font-size:.78rem;color:var(--ink-2);margin-top:2px}
+  .step pre{margin:6px 0 0;background:var(--surface-2);border:1px solid var(--line-2);border-radius:6px;
+    padding:8px 10px;font-family:var(--mono);font-size:.7rem;color:var(--ink-2);overflow-x:auto;white-space:pre-wrap}
+  .banner{border-radius:8px;padding:10px 12px;font-size:.8rem;margin-bottom:14px;display:none}
+  .banner.ok{display:block;background:color-mix(in srgb,var(--ok) 12%,transparent);border:1px solid var(--ok);color:var(--ink)}
+  .banner.bad{display:block;background:color-mix(in srgb,var(--crit) 12%,transparent);border:1px solid var(--crit);color:var(--ink)}
+  .empty{color:var(--ink-3);font-size:.82rem;padding:20px 0;text-align:center}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <span class="chip">Consumer</span>
+    <h1>Nustro Reference Consumer</h1>
+  </header>
+  <div class="sub">Local console — configure this agent, then drive a full AEA/P interaction against your Provider.</div>
+
+  <div class="warn">
+    <b>Local dev tool.</b> Keys are held in this process's memory only — never written to disk or logged.
+    Don't expose this app on an untrusted network.
+  </div>
+
+  <div class="cols">
+    <!-- ── Config ── -->
+    <div class="card">
+      <h2>Agent identity</h2>
+      <div id="banner" class="banner"></div>
+
+      <label>Consumer DID</label>
+      <input id="consumer_did" placeholder="did:aeap:…">
+
+      <label>Agent private key (PEM — shown once at activation)</label>
+      <textarea id="private_key" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+      <div class="row"><input type="file" accept=".pem,.key,.txt" onchange="loadFile(this,'private_key')"></div>
+
+      <label>Agent certificate (JWT)</label>
+      <textarea id="certificate" placeholder="eyJhbGciOiJFUzI1NiIs…"></textarea>
+      <div class="row"><input type="file" accept=".jwt,.txt" onchange="loadFile(this,'certificate')"></div>
+
+      <label>Principal key</label>
+      <input id="nustro_principal_key" type="password" placeholder="nustro_sandbox_… / nustro_live_…">
+
+      <h2 style="margin-top:22px">Counterparty</h2>
+      <label>Provider URL</label>
+      <input id="provider_base_url" value="http://localhost:5001">
+      <label>Provider DID</label>
+      <input id="provider_did" placeholder="did:aeap:…">
+
+      <h2 style="margin-top:22px">Wallet</h2>
+      <label>Wallet private key (Base Sepolia)</label>
+      <input id="wallet_private_key" type="password" placeholder="0x…">
+      <div class="hint">Without it the run stops at the payment step — the Provider requires a real tx.</div>
+
+      <details>
+        <summary>Advanced</summary>
+        <label>Operator URL</label>
+        <input id="operator_url" placeholder="https://api.nustro.ai">
+        <label>Base Sepolia RPC</label>
+        <input id="base_sepolia_rpc" placeholder="https://base-sepolia…">
+      </details>
+
+      <button class="primary" id="saveBtn" onclick="save()">Save session</button>
+    </div>
+
+    <!-- ── Status + run ── -->
+    <div style="display:grid;gap:18px">
+      <div class="card">
+        <h2>Readiness</h2>
+        <div class="status" id="status">
+          <div class="probe"><span class="dot" id="d_cfg"></span>Identity loaded<span class="v" id="v_cfg">—</span></div>
+          <div class="probe"><span class="dot" id="d_agent"></span>Agent status<span class="v" id="v_agent">—</span></div>
+          <div class="probe"><span class="dot" id="d_env"></span>Environment<span class="v" id="v_env">—</span></div>
+          <div class="probe"><span class="dot" id="d_wallet"></span>Wallet configured<span class="v" id="v_wallet">—</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Run the interaction</h2>
+        <div class="runbar">
+          <div>
+            <label>Query</label>
+            <input id="query" value="What are the key principles of AEA/P?">
+          </div>
+          <button class="run" id="runBtn" onclick="run()">▶ Run</button>
+        </div>
+        <div class="row" style="gap:12px">
+          <div style="flex:1">
+            <label>Outcome</label>
+            <select id="confirm_outcome" onchange="toggleScore()">
+              <option value="confirmed">confirmed</option>
+              <option value="partial">partial</option>
+              <option value="rejected">rejected</option>
+            </select>
+          </div>
+          <div style="flex:1" id="scoreWrap" hidden>
+            <label>Score (0.0 – 1.0)</label>
+            <input id="confirm_score" type="number" min="0" max="1" step="0.1" value="0.5">
+          </div>
+          <div style="flex:1">
+            <label>Instead of confirming</label>
+            <select id="dispute">
+              <option value="false">confirm delivery</option>
+              <option value="true">file a dispute</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Interaction timeline</h2>
+        <div id="result" class="banner"></div>
+        <div class="timeline" id="timeline"><div class="empty">Save a session, then ▶ Run.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function loadFile(input, target){
+  const f = input.files[0]; if(!f) return;
+  const r = new FileReader();
+  r.onload = () => { $(target).value = r.result.trim(); };
+  r.readAsText(f);
+}
+function toggleScore(){ $('scoreWrap').hidden = $('confirm_outcome').value !== 'partial'; }
+
+function banner(el, msg, ok){ const b = $(el); b.className = 'banner ' + (ok ? 'ok' : 'bad'); b.textContent = msg; }
+
+function setProbe(key, state, value){
+  $('d_'+key).className = 'dot' + (state ? ' ' + state : '');
+  $('v_'+key).textContent = value;
+}
+
+async function save(){
+  const body = {
+    consumer_did:         $('consumer_did').value.trim(),
+    provider_did:         $('provider_did').value.trim(),
+    provider_base_url:    $('provider_base_url').value.trim(),
+    private_key:          $('private_key').value.trim(),
+    certificate:          $('certificate').value.trim(),
+    nustro_principal_key: $('nustro_principal_key').value.trim(),
+    wallet_private_key:   $('wallet_private_key').value.trim(),
+    operator_url:         $('operator_url').value.trim(),
+    base_sepolia_rpc:     $('base_sepolia_rpc').value.trim(),
+  };
+  $('saveBtn').disabled = true;
+  try{
+    const r = await fetch('/configure', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    if(!r.ok){
+      banner('banner', d.error === 'missing_fields'
+        ? 'Missing: ' + (d.missing || []).join(', ')
+        : (d.message || d.error || 'Configure failed'), false);
+    } else {
+      banner('banner', 'Session configured — ' + d.consumer_did, true);
+      refresh();
+    }
+  }catch(e){ banner('banner', 'Configure failed: ' + e.message, false); }
+  $('saveBtn').disabled = false;
+}
+
+async function refresh(){
+  try{
+    const d = await (await fetch('/health')).json();
+    if(d.status === 'unconfigured'){
+      setProbe('cfg','bad','not loaded'); ['agent','env','wallet'].forEach(k=>setProbe(k,'','—'));
+      return;
+    }
+    setProbe('cfg','ok', d.agent_id ? d.agent_id.slice(0,22)+'…' : 'loaded');
+    setProbe('agent', d.agent_status==='ACTIVE'?'ok':'bad', d.agent_status);
+    setProbe('env', d.environment==='production'?'ok':'warn', d.environment);
+    setProbe('wallet', d.wallet_configured?'ok':'warn', d.wallet_configured?'yes':'no — payment will fail');
+  }catch(e){ setProbe('cfg','bad','app unreachable'); }
+}
+
+function renderLog(log){
+  const tl = $('timeline'); tl.innerHTML = '';
+  if(!log || !log.length){ tl.innerHTML = '<div class="empty">No steps returned.</div>'; return; }
+  // interaction_log[] emits 1–2 entries per step (action, then result+detail) — group by step.
+  const byStep = new Map();
+  log.forEach(e => { if(!byStep.has(e.step)) byStep.set(e.step, []); byStep.get(e.step).push(e); });
+  [...byStep.entries()].sort((a,b)=>a[0]-b[0]).forEach(([n, entries]) => {
+    const last = entries[entries.length-1];
+    const el = document.createElement('div'); el.className = 'step';
+    el.innerHTML = '<div class="n">'+n+'</div><div>'
+      + '<div class="d">'+entries[0].description+'</div>'
+      + (entries.length>1 ? '<div class="m">'+last.description+'</div>' : '')
+      + (last.detail ? '<pre>'+JSON.stringify(last.detail,null,2)+'</pre>' : '')
+      + '</div>';
+    tl.appendChild(el);
+  });
+}
+
+async function run(){
+  const body = { query: $('query').value };
+  const outcome = $('confirm_outcome').value;
+  body.confirm_outcome = outcome;
+  if(outcome === 'partial') body.confirm_score = parseFloat($('confirm_score').value);
+  if($('dispute').value === 'true') body.dispute = true;
+
+  $('runBtn').disabled = true; $('runBtn').textContent = 'running…';
+  $('result').className = 'banner'; $('timeline').innerHTML = '<div class="empty">Running…</div>';
+  try{
+    const r = await fetch('/run', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+    const d = await r.json();
+    renderLog(d.interaction_log || d.log);
+    if(r.ok && d.success){
+      const p = d.payment || {};
+      banner('result', 'Settled — ' + (p.amount||'') + (p.simulated?' (simulated)':'') +
+        ' · tx ' + (p.tx_hash ? p.tx_hash.slice(0,14)+'…' : 'none') +
+        ' · task ' + (d.task_id || 'none'), true);
+    } else if(d.error === 'spend_policy_violation'){
+      banner('result', 'Refused by spend policy — ' + JSON.stringify(d.detail), false);
+    } else {
+      banner('result', 'Run failed: ' + (d.error || r.status) + (d.message ? ' — '+d.message : ''), false);
+    }
+  }catch(e){ banner('result','Run failed: '+e.message,false); }
+  $('runBtn').disabled = false; $('runBtn').textContent = '▶ Run';
+}
+
+refresh();
+setInterval(refresh, 15000);
+</script>
+</body>
+</html>
