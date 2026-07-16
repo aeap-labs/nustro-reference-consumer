@@ -72,6 +72,15 @@ Pass `"dispute": true` in the body to file a dispute instead of confirming.
 
 ## Run it locally
 
+**Prerequisites:** Python **3.11–3.13** (3.14 is very new — some native
+dependencies may not publish wheels for it yet, and pip will try to build them
+from source). On Debian/Ubuntu you also need the venv package, or
+`python3 -m venv` fails with *"ensurepip is not available"*:
+
+```bash
+sudo apt install python3-venv          # or e.g. python3.12-venv for a specific version
+```
+
 Start the [Provider](https://github.com/aeap-labs/nustro-reference-provider)
 first (it serves on `:5001`), then:
 
