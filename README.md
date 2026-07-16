@@ -100,7 +100,7 @@ Fund on Base Sepolia: USDC — https://faucet.circle.com · ETH — https://fauc
 
 ```bash
 python wsgi.py                                        # dev
-gunicorn --workers 2 --bind 127.0.0.1:5000 wsgi:app   # prod
+gunicorn --workers 2 --bind 127.0.0.1:5002 wsgi:app   # prod
 ```
 
 ---
@@ -110,7 +110,7 @@ gunicorn --workers 2 --bind 127.0.0.1:5000 wsgi:app   # prod
 - **`GET /`** — **local console**: a browser UI to paste this agent's identity
   (DID, key, certificate), point it at your Provider, check readiness, run the
   interaction, and watch the 9-step timeline. Start the app and open
-  `http://localhost:5000`.
+  `http://localhost:5002`.
 - **`POST /run`** (or `GET /run`) — the full flow. Optional body: `query`,
   `confirm_outcome` (`confirmed`|`partial`|`rejected`), `confirm_score`,
   `dispute`, `dispute_reason`, `dispute_description`, `resolution_sought`.
