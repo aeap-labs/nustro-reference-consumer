@@ -413,8 +413,20 @@ def run():
                         'detail': payment_data.get('detail'), 'log': log}), 403
 
     if payment_resp.status_code != 402:
-        return jsonify({'error': 'expected_402',
-                        'status_code': payment_resp.status_code, 'log': log}), 500
+        # Carry the Provider's own explanation through — it usually IS the
+        # diagnosis (e.g. its 503 says the Operator rejected the intent request
+        # because the Provider has no principal key). Swallowing it leaves the
+        # caller staring at a bare 'expected_402'.
+        step(6, 'Provider did not return 402', {
+            'status_code': payment_resp.status_code,
+            'error':       payment_data.get('error'),
+            'message':     payment_data.get('message'),
+        })
+        return jsonify({'error':       'expected_402',
+                        'status_code': payment_resp.status_code,
+                        'message':     payment_data.get('message'),
+                        'detail':      payment_data.get('error'),
+                        'log':         log}), 500
 
     methods = payment_data.get('methods', [])
     method  = next((m for m in methods if m.get('type') == 'blockchain'), None)
@@ -586,6 +598,8 @@ def health():
         'cert_tier':         status.get('cert_tier')   if status else 'unknown',
         'wallet_configured': wallet_configured,
         'payment_capable':   wallet_configured,
+        # Needed for the PoP confirm / dispute calls at the end of a run.
+        'principal_key_set': bool(os.environ.get('NUSTRO_PRINCIPAL_KEY', '')),
     })
 
 

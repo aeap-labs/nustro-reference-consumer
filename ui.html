@@ -128,6 +128,7 @@
           <div class="probe"><span class="dot" id="d_cfg"></span>Identity loaded<span class="v" id="v_cfg">—</span></div>
           <div class="probe"><span class="dot" id="d_agent"></span>Agent status<span class="v" id="v_agent">—</span></div>
           <div class="probe"><span class="dot" id="d_env"></span>Environment<span class="v" id="v_env">—</span></div>
+          <div class="probe"><span class="dot" id="d_key"></span>Principal key<span class="v" id="v_key">—</span></div>
           <div class="probe"><span class="dot" id="d_wallet"></span>Wallet configured<span class="v" id="v_wallet">—</span></div>
         </div>
       </div>
@@ -223,12 +224,14 @@ async function refresh(){
   try{
     const d = await (await fetch('/health')).json();
     if(d.status === 'unconfigured'){
-      setProbe('cfg','bad','not loaded'); ['agent','env','wallet'].forEach(k=>setProbe(k,'','—'));
+      setProbe('cfg','bad','not loaded'); ['agent','env','key','wallet'].forEach(k=>setProbe(k,'','—'));
       return;
     }
     setProbe('cfg','ok', d.agent_id ? d.agent_id.slice(0,22)+'…' : 'loaded');
     setProbe('agent', d.agent_status==='ACTIVE'?'ok':'bad', d.agent_status);
     setProbe('env', d.environment==='production'?'ok':'warn', d.environment);
+    setProbe('key', d.principal_key_set?'ok':'bad',
+             d.principal_key_set?'set':'missing — confirm/dispute will fail');
     setProbe('wallet', d.wallet_configured?'ok':'warn', d.wallet_configured?'yes':'no — payment will fail');
   }catch(e){ setProbe('cfg','bad','app unreachable'); }
 }
@@ -272,7 +275,14 @@ async function run(){
     } else if(d.error === 'spend_policy_violation'){
       banner('result', 'Refused by spend policy — ' + JSON.stringify(d.detail), false);
     } else {
-      banner('result', 'Run failed: ' + (d.error || r.status) + (d.message ? ' — '+d.message : ''), false);
+      // Surface everything the app gave us — the upstream HTTP status and the
+      // counterparty's message are usually the whole diagnosis.
+      const bits = [];
+      if(d.error) bits.push(d.error);
+      if(d.status_code) bits.push('upstream HTTP ' + d.status_code);
+      if(d.message) bits.push(d.message);
+      if(d.detail) bits.push(typeof d.detail === 'string' ? d.detail : JSON.stringify(d.detail));
+      banner('result', 'Run failed: ' + (bits.join(' · ') || r.status), false);
     }
   }catch(e){ banner('result','Run failed: '+e.message,false); }
   $('runBtn').disabled = false; $('runBtn').textContent = '▶ Run';
