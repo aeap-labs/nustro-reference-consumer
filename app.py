@@ -177,7 +177,7 @@ def _confirm_task(task_id: str, data: dict) -> dict:
         resp = http_requests.post(
             f"{OPERATOR_URL}/v1/tasks/{task_id}/confirm",
             headers={
-                'Nustro-Principal-Key': principal_key,
+                'Nustro-Api-Key': principal_key,
                 'Content-Type':         'application/json',
             },
             json=payload,
@@ -209,7 +209,7 @@ def _file_dispute(facilitation_id: str, data: dict, gross_amt: str) -> dict:
         resp = http_requests.post(
             f"{OPERATOR_URL}/v1/disputes",
             headers={
-                'Nustro-Principal-Key': principal_key,
+                'Nustro-Api-Key': principal_key,
                 'Content-Type': 'application/json',
             },
             json={
