@@ -161,9 +161,8 @@ def _confirm_task(task_id: str, data: dict) -> dict:
     Confirm a PoP task via Nustro Operator.
     Called from Step 9 (default behavior — no dispute requested).
     """
-    principal_key = os.environ.get('NUSTRO_PRINCIPAL_KEY', '')
-    if not principal_key:
-        return {'success': False, 'message': 'NUSTRO_PRINCIPAL_KEY not configured.'}
+    if client is None:
+        return {'success': False, 'message': 'Agent identity not configured (POST /configure).'}
 
     outcome = data.get('confirm_outcome', 'confirmed')
     score   = data.get('confirm_score', None)
@@ -173,14 +172,19 @@ def _confirm_task(task_id: str, data: dict) -> dict:
     if outcome == 'partial' and score is not None:
         payload['score'] = score
 
+    # Agent-authenticated: we confirm AS the consumer agent (certificate +
+    # request-bound proof), not with a management key (Operator Ref v1.2 §4.5).
+    # Sign over the exact bytes we send, so serialize the body ourselves.
+    path = f"/v1/tasks/{task_id}/confirm"
+    body = json.dumps(payload).encode('utf-8')
+    headers = client.operator_request_headers('POST', path, body=body)
+    headers['Content-Type'] = 'application/json'
+
     try:
         resp = http_requests.post(
-            f"{OPERATOR_URL}/v1/tasks/{task_id}/confirm",
-            headers={
-                'Nustro-Api-Key': principal_key,
-                'Content-Type':         'application/json',
-            },
-            json=payload,
+            f"{OPERATOR_URL}{path}",
+            headers=headers,
+            data=body,
             timeout=10,
         )
         result = resp.json()
@@ -250,6 +254,11 @@ def configure():
     Body: consumer_did, provider_did, provider_base_url, private_key (PEM),
     certificate (JWT) — required; operator_url, nustro_principal_key,
     wallet_private_key, base_sepolia_rpc — optional.
+
+    The normal purchase/confirm flow authenticates AS the consumer agent
+    (certificate + request-bound proof) — no management key needed. The
+    nustro_principal_key is only used to FILE A DISPUTE (a management-surface
+    call); leave it blank unless you exercise the dispute path.
 
     LOCAL / TRUSTED DEMO USE ONLY: this accepts an agent private key over HTTP.
     Never expose it on an untrusted network.

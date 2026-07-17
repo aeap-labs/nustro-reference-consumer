@@ -95,8 +95,9 @@
       <textarea id="certificate" placeholder="eyJhbGciOiJFUzI1NiIs…"></textarea>
       <div class="row"><input type="file" accept=".jwt,.txt" onchange="loadFile(this,'certificate')"></div>
 
-      <label>Principal key</label>
+      <label>Principal key <span style="opacity:.6;font-weight:400">· optional, dispute-only</span></label>
       <input id="nustro_principal_key" type="password" placeholder="nustro_sandbox_… / nustro_live_…">
+      <div class="hint">Purchase &amp; confirm authenticate as the agent (certificate) — no key needed. Only required to file a dispute.</div>
 
       <h2 style="margin-top:22px">Counterparty</h2>
       <label>Provider URL</label>
@@ -128,7 +129,7 @@
           <div class="probe"><span class="dot" id="d_cfg"></span>Identity loaded<span class="v" id="v_cfg">—</span></div>
           <div class="probe"><span class="dot" id="d_agent"></span>Agent status<span class="v" id="v_agent">—</span></div>
           <div class="probe"><span class="dot" id="d_env"></span>Environment<span class="v" id="v_env">—</span></div>
-          <div class="probe"><span class="dot" id="d_key"></span>Principal key<span class="v" id="v_key">—</span></div>
+          <div class="probe"><span class="dot" id="d_key"></span>Principal key (disputes)<span class="v" id="v_key">—</span></div>
           <div class="probe"><span class="dot" id="d_wallet"></span>Wallet configured<span class="v" id="v_wallet">—</span></div>
         </div>
       </div>
@@ -230,8 +231,8 @@ async function refresh(){
     setProbe('cfg','ok', d.agent_id ? d.agent_id.slice(0,22)+'…' : 'loaded');
     setProbe('agent', d.agent_status==='ACTIVE'?'ok':'bad', d.agent_status);
     setProbe('env', d.environment==='production'?'ok':'warn', d.environment);
-    setProbe('key', d.principal_key_set?'ok':'bad',
-             d.principal_key_set?'set':'missing — confirm/dispute will fail');
+    setProbe('key', d.principal_key_set?'ok':'warn',
+             d.principal_key_set?'set':'not set · only needed for disputes');
     setProbe('wallet', d.wallet_configured?'ok':'warn', d.wallet_configured?'yes':'no — payment will fail');
   }catch(e){ setProbe('cfg','bad','app unreachable'); }
 }

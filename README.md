@@ -112,7 +112,7 @@ cp .env.example .env      # then edit
 | Variable | Required | Description |
 |----------|----------|-------------|
 | `OPERATOR_URL` | No | Nustro Operator base URL. Default `https://api.nustro.ai`. |
-| `NUSTRO_PRINCIPAL_KEY` | Yes | Management key (`nustro_sandbox_…` / `nustro_live_…`), shown once. |
+| `NUSTRO_PRINCIPAL_KEY` | No | Management key — **dispute-only**. Purchase/confirm authenticate as the agent (certificate); this is used only to file a dispute. |
 | `CONSUMER_DID` | Yes | This agent's DID (`did:aeap:…`). |
 | `PROVIDER_DID` | Yes | Counterparty (Sell-bot) DID. |
 | `PROVIDER_BASE_URL` | Yes | Provider service URL (e.g. `http://localhost:5001`). |
@@ -213,7 +213,8 @@ enough qualifying interactions). Check: `curl https://api.nustro.ai/v1/agents/{d
 - **`market_not_authorized` / `buyer_country_missing`** — set the consumer principal's `country`; ensure the Provider authorizes `{COUNTRY}-USDC` (or `GLOBAL-USDC`).
 - **`task_id: null`** — Consumer and Provider share a principal (Sybil check).
 - **401 on `POST /research`** — cert/proof verification failed; check `keys/` and cert expiry.
-- **401 `unauthorized` on Nustro calls** — check `NUSTRO_PRINCIPAL_KEY` and its sandbox/live environment.
+- **`401 aeap_verification_failed` on confirm** — the Operator rejected the agent certificate/proof: cert not issued by this Operator's CA, expired, or `AEAP-Timestamp` clock skew (>30s). (Confirm no longer uses the management key.)
+- **`401 unauthorized` when filing a dispute** — that path *does* use `NUSTRO_PRINCIPAL_KEY`; check it and its sandbox/live environment.
 
 ---
 
