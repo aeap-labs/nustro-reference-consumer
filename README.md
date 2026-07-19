@@ -117,7 +117,7 @@ cp .env.example .env      # then edit
 | `PROVIDER_DID` | Yes | Counterparty (Sell-bot) DID. |
 | `PROVIDER_BASE_URL` | Yes | Provider service URL (e.g. `http://localhost:5001`). |
 | `CONSUMER_WALLET_PRIVATE_KEY` | Yes | EVM private key of the wallet holding USDC. |
-| `BASE_SEPOLIA_RPC` | Yes | RPC URL for the settlement network. |
+| `BASE_SEPOLIA_RPC` | No | RPC URL for the settlement network. Defaults to the public `https://sepolia.base.org` when unset (rate-limited — set your own Alchemy/Infura URL for reliable use). |
 
 Plus this agent's material in `keys/`:
 

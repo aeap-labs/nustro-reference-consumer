@@ -70,10 +70,20 @@ ERC20_ABI = json.loads('[{"inputs":[{"name":"spender","type":"address"},{"name":
 # Minimal NustroSettlement ABI
 SETTLEMENT_ABI = json.loads('[{"inputs":[{"name":"token","type":"address"},{"name":"amount","type":"uint256"},{"name":"providerDidHash","type":"bytes32"},{"name":"consumerDidHash","type":"bytes32"}],"name":"pay","outputs":[],"stateMutability":"nonpayable","type":"function"}]')
 
-RPC_URLS = {
-    'base-sepolia': os.environ.get('BASE_SEPOLIA_RPC', ''),
-    'base':         os.environ.get('BASE_MAINNET_RPC', ''),
-}
+# Public testnet RPC used when no endpoint is configured, so the demo executes
+# out-of-the-box. Public RPCs rate-limit and can be flaky — set BASE_SEPOLIA_RPC
+# (or the console's RPC field) to your own Alchemy/Infura URL for real use.
+DEFAULT_RPCS = {'base-sepolia': 'https://sepolia.base.org'}
+
+
+def _build_rpc_urls() -> dict:
+    return {
+        'base-sepolia': os.environ.get('BASE_SEPOLIA_RPC', '') or DEFAULT_RPCS['base-sepolia'],
+        'base':         os.environ.get('BASE_MAINNET_RPC', ''),   # mainnet: bring your own
+    }
+
+
+RPC_URLS = _build_rpc_urls()
 
 
 def _execute_payment(payment_method: dict) -> dict:
@@ -295,10 +305,7 @@ def configure():
         os.environ['CONSUMER_WALLET_PRIVATE_KEY'] = data['wallet_private_key'].strip()
     if (data.get('base_sepolia_rpc') or '').strip():
         os.environ['BASE_SEPOLIA_RPC'] = data['base_sepolia_rpc'].strip()
-    RPC_URLS = {
-        'base-sepolia': os.environ.get('BASE_SEPOLIA_RPC', ''),
-        'base':         os.environ.get('BASE_MAINNET_RPC', ''),
-    }
+    RPC_URLS = _build_rpc_urls()   # falls back to the public RPC when unset
 
     return jsonify({
         'status':            'configured',
