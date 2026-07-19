@@ -53,9 +53,11 @@ Pass `"dispute": true` in the body to file a dispute instead of confirming.
    then `POST /v1/agents/{did}/activate` for the key pair + certificate
    (private key shown **once**).
 3. **Funded wallet** — EVM wallet with USDC + gas.
-4. **For on-chain settlement (Steps 6–9):** both agents in the **`production`**
-   environment (`POST /v1/agents/{did}/environment`) — needs an accredited
-   Platform and a `nustro_live_` key. Steps 1–5 work in **sandbox**.
+4. **Same environment for both agents** — sandbox settles on **testnet (Base
+   Sepolia)**, production on **mainnet**; a cross-environment pair is rejected
+   (`environment_mismatch`). The full run (Steps 1–9, incl. on-chain settlement)
+   works in **sandbox**; production additionally needs an accredited Platform
+   and a `nustro_live_` key.
 
 > **Different principals** — Consumer and Provider must be owned by different
 > principals for PoP credit (same-principal → `task_id: null`).
