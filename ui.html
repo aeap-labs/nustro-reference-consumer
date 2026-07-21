@@ -131,6 +131,7 @@
           <div class="probe"><span class="dot" id="d_env"></span>Environment<span class="v" id="v_env">—</span></div>
           <div class="probe"><span class="dot" id="d_key"></span>Principal key (disputes)<span class="v" id="v_key">—</span></div>
           <div class="probe"><span class="dot" id="d_wallet"></span>Wallet configured<span class="v" id="v_wallet">—</span></div>
+          <div class="probe"><span class="dot" id="d_rating"></span>Rating (AR)<span class="v" id="v_rating">—</span></div>
         </div>
       </div>
 
@@ -225,7 +226,7 @@ async function refresh(){
   try{
     const d = await (await fetch('/health')).json();
     if(d.status === 'unconfigured'){
-      setProbe('cfg','bad','not loaded'); ['agent','env','key','wallet'].forEach(k=>setProbe(k,'','—'));
+      setProbe('cfg','bad','not loaded'); ['agent','env','key','wallet','rating'].forEach(k=>setProbe(k,'','—'));
       return;
     }
     setProbe('cfg','ok', d.agent_id ? d.agent_id.slice(0,22)+'…' : 'loaded');
@@ -234,6 +235,12 @@ async function refresh(){
     setProbe('key', d.principal_key_set?'ok':'warn',
              d.principal_key_set?'set':'not set · only needed for disputes');
     setProbe('wallet', d.wallet_configured?'ok':'warn', d.wallet_configured?'yes':'no — payment will fail');
+    // Own PoP rating — null until 10 production interactions (sandbox never publishes).
+    if (d.agent_rating != null)
+      setProbe('rating', d.agent_rating >= 0.75 ? 'ok' : 'warn', Number(d.agent_rating).toFixed(2));
+    else
+      setProbe('rating', 'warn', d.environment === 'production'
+        ? 'not yet rated · <10 interactions' : 'not published in sandbox');
   }catch(e){ setProbe('cfg','bad','app unreachable'); }
 }
 

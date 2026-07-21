@@ -155,7 +155,7 @@ gunicorn --workers 2 --bind 127.0.0.1:5002 wsgi:app   # prod
   `base_sepolia_rpc` — optional. **Local/trusted use only** — it accepts a
   private key over HTTP. Until configured (via `.env` or this call), `/run`
   returns `409 not_configured`.
-- **`GET /health`** — agent status (`unconfigured` until an identity is loaded).
+- **`GET /health`** — agent status (`unconfigured` until an identity is loaded). Includes `agent_rating` (the console's **Rating (AR)** probe) — null until 10 production interactions, and never published for sandbox agents.
 
 ---
 

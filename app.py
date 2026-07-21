@@ -612,6 +612,9 @@ def health():
         'agent_status':      status.get('status')      if status else 'unknown',
         'environment':       status.get('environment') if status else 'unknown',
         'cert_tier':         status.get('cert_tier')   if status else 'unknown',
+        # Own PoP rating — null until 10 production interactions (and for
+        # sandbox-only agents). Closes the loop after a Step-9 confirmation.
+        'agent_rating':      status.get('agent_rating') if status else None,
         'wallet_configured': wallet_configured,
         'payment_capable':   wallet_configured,
         # Needed for the PoP confirm / dispute calls at the end of a run.
